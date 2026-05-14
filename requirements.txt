@@ -1,0 +1,15 @@
+# Core dependencies
+torch==2.1.0
+numpy==1.23.5
+scipy==1.11.2
+matplotlib==3.8.0
+h5py==3.9.0
+tqdm==4.66.1
+
+# Optional utilities for visualization and analysis
+pandas==2.1.1
+seaborn==0.13.0
+
+# Recommended system
+# Python 3.10 or 3.11
+# CUDA Toolkit >= 11.8 if running on GPU
