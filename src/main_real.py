@@ -4,15 +4,13 @@ main_real.py
 -------------
 End-to-end example for running BACE on *real deep-brain recordings*.
 
-This script follows the experimental setup described in Section 3.2
-(“Real Neural Data”) of the paper.  The dataset itself is not public,
-but the processing and model-training pipeline are fully reproducible.
+This script provides the expected pipeline for applying BACE to real deep-brain recordings.
 
 Expected data format (private):
     MATLAB .mat file  (see RealDataConfig in config.py)
     shape: (phase, trial, channel, time)
         phase   →  4 behavioral phases:  Wait, React, Reach, Return
-        channel →  80 channels (10 per region × 8 regions)
+        channel →  80 channels (8-10 per region × N regions)
         time    →  400 samples  (1 kHz segments)
 
 Outputs:
