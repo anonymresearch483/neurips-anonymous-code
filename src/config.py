@@ -70,18 +70,19 @@ class RealDataConfig(BaseConfig):
     """
     Configuration for real deep-brain recordings.
 
-    The private dataset (not shared) is stored as a MATLAB .mat file:
-        shape = (phase, trial, channel, time)
-    where  phase ∈ {0:Wait,1:React,2:Reach,3:Return},
-           channel = 80 (10 per region × 8 regions),
-           time ≈ 400 samples @1 kHz (downsampled offline).
+    The private dataset used in the paper cannot be shared publicly.
+    This placeholder config documents the expected input format:
+        shape = (context, trial, channel, time)
+    where  context ∈ {0:Wait,1:React,2:Reach,3:Return},
+           channel = 80 grouped into anatomical regions,
+           time ≈ 400 samples.
     """
-    mat_path: str = "PATH/TO/AllPhases_CleanReordered.mat"
+    mat_path: str = "path/to/private_neural_data.mat"
     out_dir: Path = Path("./out/real")
 
-    num_trials_per_phase: int = 326
+    num_trials_per_phase: int = 326  # example value; depends on the neural dataset
     num_channels_total: int = 80
-    num_regions: int = 8
+    num_regions: int = 8 # example value; depends on the neural dataset
     chans_per_region: int = 10
     phases: List[str] = ("Wait", "React", "Reach", "Return")
 
