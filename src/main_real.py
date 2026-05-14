@@ -8,8 +8,8 @@ This script provides the expected pipeline for applying BACE to real deep-brain 
 
 Expected data format (private):
     MATLAB .mat file  (see RealDataConfig in config.py)
-    shape: (phase, trial, channel, time)
-        phase   →  4 behavioral phases:  Wait, React, Reach, Return
+    shape: (context, trial, channel, time)
+        context   →  4 behavioral contexts:  Wait, React, Reach, Return
         channel →  80 channels (8-10 per region × N regions)
         time    →  400 samples  (1 kHz segments)
 
