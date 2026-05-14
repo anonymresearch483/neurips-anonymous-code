@@ -1,0 +1,47 @@
+# Python cache and bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Output folders
+out/
+outputs/
+logs/
+figs/
+graphs/
+metrics/
+runs/
+checkpoints/
+
+# Data, model weights, and large generated files
+*.npy
+*.npz
+*.mat
+*.pt
+*.pth
+*.pkl
+
+# Generated figures
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+
+# Ignore result files only when inside output folders
+out/**/*.csv
+out/**/*.json
+outputs/**/*.csv
+outputs/**/*.json
+logs/**/*.csv
+logs/**/*.json
+metrics/**/*.csv
+metrics/**/*.json
+
+# Environment or IDE files
+.env
+.venv
+.DS_Store
+.vscode/
+.idea/
