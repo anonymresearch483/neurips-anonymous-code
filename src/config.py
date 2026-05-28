@@ -52,7 +52,6 @@ class BaseConfig:
     lambda_cont: float = 0.0
     lambda_vel:  float = 1.0
     lambda_curv: float = 0.6
-    lambda_var:  float = 0.0
     use_row_gain: bool = True
 
     # Reproducibility / early stopping
@@ -68,14 +67,23 @@ class BaseConfig:
 @dataclass
 class RealDataConfig(BaseConfig):
     """
-    Configuration for real deep-brain recordings.
+    Configuration for private human LFP recordings.
 
-    The private dataset used in the paper cannot be shared publicly.
-    This placeholder config documents the expected input format:
-        shape = (context, trial, channel, time)
-    where  context ∈ {0:Wait,1:React,2:Reach,3:Return},
-           channel = 80 grouped into anatomical regions,
-           time ≈ 400 samples.
+    Expected preprocessed format:
+        data shape = [context, trial, channel, time]
+
+    context:
+        0 = Wait
+        1 = React
+        2 = Reach
+        3 = Return
+
+    The paper uses participant-specific region definitions:
+        P1: 8 nodes, 80 retained channels
+        P2: 10 nodes, 80 retained channels
+        P3: 10 nodes, 80 retained channels
+
+    Raw clinical recordings are not included in this repository.
     """
     mat_path: str = "path/to/private_neural_data.mat"
     out_dir: Path = Path("./out/real")
