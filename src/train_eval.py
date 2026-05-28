@@ -9,7 +9,7 @@ Implements:
     • train_full()              : core training loop with early stopping
     • eval_test()               : quantitative test evaluation
     • overlay_examples()        : representative trajectory plots
-    • save_phase_adjacency_plots() : learned adjacency visualizations
+    • save_context_adjacency_plots() : learned adjacency visualizations
 
 Corresponds to Sections 3.1–3.2 of the paper:
 "Recovery of Ground-Truth Connectivity" and "Real Neural Data".
@@ -46,13 +46,13 @@ def train_full(model: BACE, train_loader, val_loader, cfg):
         model.train()
         run_loss = 0.0
 
-        for X_in, Y_out, phases in train_loader:
+        for X_in, Y_out, contexts in train_loader:
             X_in = X_in.to(cfg.device)
             Y_out = Y_out.to(cfg.device)
-            phases = phases.to(cfg.device)
+            contexts = contexts.to(cfg.device)
 
             # forward pass
-            Y_hat = model(X_in, phases, teacher=None, sched_p=0.0, use_neigh=True)
+            Y_hat = model(X_in, contexts, teacher=None, sched_p=0.0, use_neigh=True)
 
             # forecast loss (weighted)
             gamma = 3.0
@@ -95,11 +95,11 @@ def train_full(model: BACE, train_loader, val_loader, cfg):
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for X_in, Y_out, phases in val_loader:
+            for X_in, Y_out, contexts in val_loader:
                 X_in = X_in.to(cfg.device)
                 Y_out = Y_out.to(cfg.device)
-                phases = phases.to(cfg.device)
-                Y_hat = model(X_in, phases, use_neigh=True)
+                contexts = contexts.to(cfg.device)
+                Y_hat = model(X_in, contexts, use_neigh=True)
                 val_loss += F.mse_loss(Y_hat, Y_out, reduction="mean").item()
         val_loss /= max(1, len(val_loader))
 
@@ -158,11 +158,11 @@ def eval_test(model: BACE, test_loader, cfg):
     model.eval()
     sse, count = 0.0, 0
     with torch.no_grad():
-        for X_in, Y_out, phases in test_loader:
+        for X_in, Y_out, contexts in test_loader:
             X_in = X_in.to(cfg.device)
             Y_out = Y_out.to(cfg.device)
-            phases = phases.to(cfg.device)
-            Y_hat = model(X_in, phases)
+            contexts = contexts.to(cfg.device)
+            Y_hat = model(X_in, contexts)
             sse += F.mse_loss(Y_hat, Y_out, reduction="sum").item()
             count += Y_out.numel()
     mse = sse / count
@@ -194,26 +194,26 @@ def eval_test(model: BACE, test_loader, cfg):
 
 def overlay_examples(model, ds, loader, cfg, region_idx=0, save_to=None):
     """
-    Plot example trajectories per phase (mean across channels or region).
+    Plot example trajectories per context (mean across channels or region).
     """
     os.makedirs(os.path.join(cfg.out_dir, "figs"), exist_ok=True)
     labels = [f"R{i}" for i in range(ds.N)]
     if save_to is None:
-        save_to = os.path.join(cfg.out_dir, "figs", "overlay_phase_examples.png")
+        save_to = os.path.join(cfg.out_dir, "figs", "overlay_context_examples.png")
 
     fig, axs = plt.subplots(2, 2, figsize=(10, 7))
     used = set()
 
     model.eval()
     with torch.no_grad():
-        for X_in, Y_out, phases in loader:
+        for X_in, Y_out, contexts in loader:
             X_in = X_in.to(cfg.device)
             Y_out = Y_out.to(cfg.device)
-            phases = phases.to(cfg.device)
-            Y_hat = model(X_in, phases)
+            contexts = contexts.to(cfg.device)
+            Y_hat = model(X_in, contexts)
             B = X_in.shape[0]
             for b in range(B):
-                p = int(phases[b].item())
+                p = int(contexts[b].item())
                 if p in used:
                     continue
                 ax = axs[p // 2, p % 2]
@@ -225,7 +225,7 @@ def overlay_examples(model, ds, loader, cfg, region_idx=0, save_to=None):
                 ax.plot(t_p, past, lw=1.0, label="past")
                 ax.plot(t_f, true, lw=1.5, label="true")
                 ax.plot(t_f, pred, lw=1.5, ls="--", label="pred")
-                ax.set_title(f"{labels[region_idx]} | Phase {p}")
+                ax.set_title(f"{labels[region_idx]} | context {p}")
                 ax.grid(alpha=0.2)
                 used.add(p)
                 if len(used) >= 4:
@@ -239,9 +239,9 @@ def overlay_examples(model, ds, loader, cfg, region_idx=0, save_to=None):
     plt.close()
 
 
-def save_phase_adjacency_plots(model, cfg, region_labels=None):
+def save_context_adjacency_plots(model, cfg, region_labels=None):
     """
-    Save learned phase-specific adjacency heatmaps (|A|).
+    Save learned context-specific adjacency heatmaps (|A|).
     """
     os.makedirs(os.path.join(cfg.out_dir, "graphs"), exist_ok=True)
     os.makedirs(os.path.join(cfg.out_dir, "figs"), exist_ok=True)
@@ -255,8 +255,8 @@ def save_phase_adjacency_plots(model, cfg, region_labels=None):
     for p in range(A_eff.shape[0]):
         save_heatmap(
             np.abs(A_eff[p]),
-            path=os.path.join(cfg.out_dir, "figs", f"learned_A_phase{p}.png"),
-            title=f"|A| (phase {p})",
+            path=os.path.join(cfg.out_dir, "figs", f"learned_A_context{p}.png"),
+            title=f"|A| (context {p})",
             labels=labels,
             vmin=0,
             vmax=vmax,
