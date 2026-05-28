@@ -80,11 +80,11 @@ class RealDataConfig(BaseConfig):
     mat_path: str = "path/to/private_neural_data.mat"
     out_dir: Path = Path("./out/real")
 
-    num_trials_per_phase: int = 326  # example value; depends on the neural dataset
+    num_trials_per_context: int = 326  # example value; depends on the neural dataset
     num_channels_total: int = 80
     num_regions: int = 8 # example value; depends on the neural dataset
     chans_per_region: int = 10
-    phases: List[str] = ("Wait", "React", "Reach", "Return")
+    contexts: List[str] = ("Wait", "React", "Reach", "Return")
 
     region_to_channels: Dict[str, List[int]] = None
 
@@ -115,15 +115,15 @@ class SynthStructuredConfig(BaseConfig):
         x_{t+1} = ρ·x_t + γ·A_φ·x_t + ε_t
         ε_t ∼ 𝒩(0, σ² I)
     where each A_φ (φ=1…4) has identical row degree (k=2)
-    with phase-shifted edges and zero diagonal.
+    with context-shifted edges and zero diagonal.
     """
 
     out_dir: Path = Path("./out/synthetic_structured")
 
     # Data generation
     num_nodes: int = 8
-    num_phases: int = 4
-    trials_per_phase: int = 326
+    num_contexts: int = 4
+    trials_per_context: int = 326
     seq_len: int = 400
     rho: float = 0.70              # leak term
     gamma: float = 0.25            # coupling gain
@@ -151,14 +151,14 @@ class SynthStochasticConfig(BaseConfig):
     Stochastic / non-Gaussian suite.
 
     Generator:
-        x_{t+1} = x_t + (−λI + γA_φ)x_t + μ_t,
+        x_{t+1} = x_t + (−λI + γA_k)x_t + μ_t,
         μ_t autoregressive Laplace noise (colored, heavy-tailed).
     """
 
     out_dir: Path = Path("./out/synthetic_stochastic")
     num_nodes: int = 8
-    num_phases: int = 4
-    trials_per_phase: int = 326
+    num_contexts: int = 4
+    trials_per_context: int = 326
     seq_len: int = 400
 
     # Noise and dynamics
