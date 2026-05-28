@@ -7,7 +7,7 @@ Core model components shared across all experiments (real & synthetic).
 Implements:
     • PerRegionGRU       : temporal encoder per region
     • TimePositional     : time embedding
-    • PhaseGraphs        : phase-specific signed adjacency matrices
+    • contextGraphs        : context-specific signed adjacency matrices
     • GraphProjector     : message-passing with spectral normalization
     • ARHead             : autoregressive temporal decoder with attention
     • BACE               : full Behavior-Adaptive Connectivity Estimator
@@ -72,14 +72,14 @@ class TimePositional(nn.Module):
 
 
 # ==============================================================
-#  Phase-specific graph module
+#  context-specific graph module
 # ==============================================================
 
 # ==============================================================
-#  Phase-specific graph module
+#  context-specific graph module
 # ==============================================================
 
-class PhaseGraphs(nn.Module):
+class contextGraphs(nn.Module):
     """
     Learns one signed directed adjacency matrix per behavioral context.
 
@@ -116,18 +116,18 @@ class PhaseGraphs(nn.Module):
         denom = S.abs().sum(dim=-1, keepdim=True).clamp_min(self.eps)
         return S / denom
 
-    def forward(self, phases: torch.Tensor):
+    def forward(self, contexts: torch.Tensor):
         """
         Select the context-specific adjacency matrix for each sample.
 
         Args:
-            phases: [B], integer behavioral context labels.
+            contexts: [B], integer behavioral context labels.
 
         Returns:
             A: [B, N, N], selected normalized adjacency matrices.
         """
         A_all = self._row_norm_l1_signed(self.S)  # [P, N, N]
-        A = A_all[phases]                         # [B, N, N]
+        A = A_all[contexts]                         # [B, N, N]
         return A
 
     @torch.no_grad()
@@ -260,7 +260,7 @@ class BACE(nn.Module):
     Components:
         encoder  : PerRegionGRU
         tpos     : TimePositional
-        graphs   : PhaseGraphs
+        graphs   : contextGraphs
         projector: GraphProjector
         head     : ARHead
     """
@@ -269,16 +269,16 @@ class BACE(nn.Module):
         self.N, self.C = N, C
         self.enc = PerRegionGRU(N, C, cfg.d_hidden)
         self.tpos = TimePositional(cfg.d_timectx, cfg.T_in)
-        self.graphs = PhaseGraphs(N, P=4)
+        self.graphs = contextGraphs(N, P=4)
         self.proj = GraphProjector(cfg.d_hidden + cfg.d_timectx, cfg.d_proj)
         self.head = ARHead(cfg.d_proj, C, cfg.T_out, use_kv=True, attn_p=0.1)
 
-    def forward(self, X_in, phases, teacher=None, sched_p=0.0, use_neigh=True):
+    def forward(self, X_in, contexts, teacher=None, sched_p=0.0, use_neigh=True):
         B, N, C, T = X_in.shape
         H = self.enc(X_in)
         u = self.tpos(B, T, device=X_in.device).unsqueeze(1).repeat(1, N, 1, 1)
         Hc = torch.cat([H, u], dim=-1)
-        A = self.graphs(phases)
+        A = self.graphs(contexts)
         Z = self.proj(Hc, A)
         x_last = X_in[:, :, :, -1]
         Y_delta = self.head(Z, x_last=None, teacher=teacher,
