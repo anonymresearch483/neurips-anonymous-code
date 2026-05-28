@@ -75,61 +75,92 @@ class TimePositional(nn.Module):
 #  Phase-specific graph module
 # ==============================================================
 
+# ==============================================================
+#  Phase-specific graph module
+# ==============================================================
+
 class PhaseGraphs(nn.Module):
     """
-    Learns a signed adjacency per behavioral phase.
-    Each row normalized to L1 = 1 (preserving directionality).
-    Optional row-gain reweights outgoing influence per node.
+    Learns one signed directed adjacency matrix per behavioral context.
+
+    Each adjacency matrix A^(k) has:
+        • zero diagonal
+        • signed edge weights
+        • row-wise L1 normalization: sum_j |A_ij| = 1
+
+    A_ij represents directed predictive influence from source node j
+    to target node i under behavioral context k.
     """
-    def __init__(self, N: int, P: int, eps: float = 1e-6, use_row_gain: bool = True):
+    def __init__(self, N: int, P: int, eps: float = 1e-6):
         super().__init__()
         self.N, self.P, self.eps = N, P, eps
-        self.S = nn.Parameter(torch.zeros(P, N, N))   # signed pattern
+
+        # Raw trainable signed adjacency pattern for each context.
+        self.S = nn.Parameter(torch.zeros(P, N, N))
+
+        # Diagonal mask for excluding self-connections.
         self.register_buffer("I", torch.eye(N))
-        self.use_row_gain = use_row_gain
-        if use_row_gain:
-            self.G = nn.Parameter(torch.zeros(P, N))  # per-phase, per-row gains
 
     def _zero_diag(self, X):
+        """Remove self-connections."""
         return X * (1.0 - self.I)
 
     def _row_norm_l1_signed(self, S):
+        """
+        Zero diagonal and normalize each row to unit L1 norm.
+
+        Output:
+            A[p, i, j] = directed influence from source j to target i.
+        """
         S = self._zero_diag(S)
-        denom = S.abs().sum(-1, keepdim=True).clamp_min(self.eps)
+        denom = S.abs().sum(dim=-1, keepdim=True).clamp_min(self.eps)
         return S / denom
 
     def forward(self, phases: torch.Tensor):
-        A_tilde = self._row_norm_l1_signed(self.S)  # [P,N,N]
-        A = A_tilde[phases]
-        if self.use_row_gain:
-            g_all = F.softplus(self.G) + 1e-6
-            g_all = g_all * (self.N / g_all.sum(-1, keepdim=True).clamp_min(self.eps))
-            g = g_all[phases].unsqueeze(-1)         # [B,N,1]
-            A = A * g
+        """
+        Select the context-specific adjacency matrix for each sample.
+
+        Args:
+            phases: [B], integer behavioral context labels.
+
+        Returns:
+            A: [B, N, N], selected normalized adjacency matrices.
+        """
+        A_all = self._row_norm_l1_signed(self.S)  # [P, N, N]
+        A = A_all[phases]                         # [B, N, N]
         return A
 
     @torch.no_grad()
     def export_pattern(self):
-        return self._row_norm_l1_signed(self.S).cpu().numpy()
+        """
+        Export normalized signed adjacency matrices.
+
+        Shape:
+            [P, N, N]
+        """
+        return self._row_norm_l1_signed(self.S).detach().cpu().numpy()
 
     @torch.no_grad()
     def export_eff(self):
-        A = self._row_norm_l1_signed(self.S)
-        if self.use_row_gain:
-            g = F.softplus(self.G) + 1e-6
-            g = g * (self.N / g.sum(-1, keepdim=True).clamp_min(self.eps))
-            A = A * g[..., None]
-        return A.detach().cpu().numpy()
+        """
+        Backward-compatible export function.
+
+        Since row gain is not used in the paper version, the effective graph
+        is the same as the normalized signed adjacency pattern.
+        """
+        return self.export_pattern()
 
     @torch.no_grad()
     def init_from_correlation(self, C_list):
-        """Initialize S from per-phase correlation matrices (train set only)."""
+        """
+        Initialize raw graph parameters from per-context correlation matrices.
+
+        Correlations must be computed from training data only.
+        """
         for p in range(self.P):
-            M = torch.as_tensor(C_list[p], dtype=torch.float32)
+            M = torch.as_tensor(C_list[p], dtype=torch.float32, device=self.S.device)
             M.fill_diagonal_(0.0)
             self.S[p].copy_(M)
-        if self.use_row_gain:
-            self.G.zero_()
 
 
 # ==============================================================
@@ -238,7 +269,7 @@ class BACE(nn.Module):
         self.N, self.C = N, C
         self.enc = PerRegionGRU(N, C, cfg.d_hidden)
         self.tpos = TimePositional(cfg.d_timectx, cfg.T_in)
-        self.graphs = PhaseGraphs(N, P=4, use_row_gain=cfg.use_row_gain)
+        self.graphs = PhaseGraphs(N, P=4)
         self.proj = GraphProjector(cfg.d_hidden + cfg.d_timectx, cfg.d_proj)
         self.head = ARHead(cfg.d_proj, C, cfg.T_out, use_kv=True, attn_p=0.1)
 
