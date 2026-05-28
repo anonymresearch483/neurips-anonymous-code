@@ -1,4 +1,4 @@
-# data format
+# Data format
 
 Raw clinical recordings are not included.
 
