@@ -88,7 +88,7 @@ def overlay_example_plot(
     past: np.ndarray,
     true: np.ndarray,
     pred: np.ndarray,
-    phase_name: str,
+    context_name: str,
     region_name: str,
     save_to: str = None,
     T_in: int = 100,
@@ -102,7 +102,7 @@ def overlay_example_plot(
         past         : [T_in]
         true         : [T_out]
         pred         : [T_out]
-        phase_name   : e.g., "Reach"
+        context_name   : e.g., "Reach"
         region_name  : e.g., "GPi_L"
         save_to      : output path (.png)
         T_in, T_out  : temporal window lengths
@@ -115,7 +115,7 @@ def overlay_example_plot(
     plt.plot(t_p, past, lw=linewidths[0], label="past")
     plt.plot(t_f, true, lw=linewidths[1], label="true")
     plt.plot(t_f, pred, lw=linewidths[2], ls="--", label="pred")
-    plt.title(f"{phase_name}  ({region_name})", fontsize=11)
+    plt.title(f"{context_name}  ({region_name})", fontsize=11)
     plt.xlabel("Time (samples)", fontsize=10)
     plt.ylabel("Signal (a.u.)", fontsize=10)
     plt.grid(alpha=0.25)
