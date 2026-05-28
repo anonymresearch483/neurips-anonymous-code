@@ -7,7 +7,7 @@ Run BACE on the *Structured Synthetic Suite* (Section 3.1 of the paper).
 This suite consists of four regimes 𝓓₁–𝓓₄, each governed by a distinct
 sparse adjacency matrix A₍φ₎ with identical row degree but shifted edge placement.
 These datasets are designed to mimic the organization of the real neural data
-(8 regions × 4 behavioral phases), while having known ground-truth connectivity.
+(8 regions × 4 behavioral contexts), while having known ground-truth connectivity.
 
 Outputs:
     out/synthetic_structured/
@@ -24,7 +24,7 @@ from config import SynthStructuredConfig as Config
 from model import BACE
 from data_utils import (
     make_gt_graphs_structured,
-    phase_corr_init_from_ds,
+    context_corr_init_from_ds,
     simulate_structured_trials,
     SlidingForecastDataset,
     make_loaders_from_trials,
@@ -32,7 +32,7 @@ from data_utils import (
     evaluate_graph_recovery,
 )
 from utils import ensure_dirs, set_seed
-from train_eval import train_full, overlay_examples, save_phase_adjacency_plots
+from train_eval import train_full, overlay_examples, save_context_adjacency_plots
 
 
 # ==============================================================
@@ -71,7 +71,7 @@ def main():
     from data_utils import compute_channel_stats, apply_channel_norm
     mean, std = compute_channel_stats(data, train_ids)
     data = apply_channel_norm(data, mean, std) 
-    print(f"Trials per phase: {cfg.trials_per_phase} | "
+    print(f"Trials per context: {cfg.trials_per_context} | "
           f"Train {len(train_ids)}, Val {len(val_ids)}, Test {len(test_ids)}")
 
     # ----------------------------------------------------------
@@ -93,10 +93,10 @@ def main():
 
     # Initialize graphs randomly (no correlation priors for synthetic)
     # with torch.no_grad():
-    #     for p in range(cfg.num_phases):
+    #     for p in range(cfg.num_contexts):
     #         model.graphs.S[p].uniform_(-0.1, 0.1)
-    from src.data_utils import phase_corr_init_from_ds
-    C_list = phase_corr_init_from_ds(ds, train_ids)
+    from src.data_utils import context_corr_init_from_ds
+    C_list = context_corr_init_from_ds(ds, train_ids)
     model.graphs.init_from_correlation(C_list)
 
     # ----------------------------------------------------------
@@ -113,8 +113,8 @@ def main():
 
     metrics = evaluate_graph_recovery(A_learned, A_gt, B_gt)
     print("Recovery metrics:")
-    for p in range(cfg.num_phases):
-        print(f"  Phase {p+1}  Corr = {metrics['corr'][p]:.3f}  F1@k_row = {metrics['f1'][p]:.3f}")
+    for p in range(cfg.num_contexts):
+        print(f"  context {p+1}  Corr = {metrics['corr'][p]:.3f}  F1@k_row = {metrics['f1'][p]:.3f}")
     print(f"  Mean Corr = {np.mean(metrics['corr']):.3f}  Mean F1 = {np.mean(metrics['f1']):.3f}")
 
     np.save(os.path.join(cfg.out_dir, "metrics", "recovery_metrics.npy"), metrics)
@@ -123,7 +123,7 @@ def main():
     # 8) Visualization (as in Fig. 5B)
     # ----------------------------------------------------------
     overlay_examples(model, ds, test_loader, cfg, region_idx=0)
-    save_phase_adjacency_plots(model, cfg)
+    save_context_adjacency_plots(model, cfg)
     
     #--------------
     #plot ground truth and learned adjacencies 
@@ -137,7 +137,7 @@ def main():
     A_learn = np.load(os.path.join(cfg.out_dir, "graphs", "A_effective.npy"))
 
     P, N, _ = A_gt.shape
-    PHASES = [f"D{i+1}" for i in range(P)]
+    contextS = [f"D{i+1}" for i in range(P)]
     labels = [f"R{i+1}" for i in range(N)]
 
     # Style
@@ -191,7 +191,7 @@ def main():
 
     row_titles = ["Ground truth A", "Learned |A|", "Top-k binarized |A|"]
     for j in range(P):
-        draw(axes[0,j], A_gt_clip[j], PHASES[j])
+        draw(axes[0,j], A_gt_clip[j], contextS[j])
         draw(axes[1,j], A_learn_clip[j])
         draw(axes[2,j], A_topk[j])
     for r,name in enumerate(row_titles):
@@ -213,7 +213,7 @@ def main():
     for p in range(P):
         f1 = f1_topk(A_learn_abs[p], B_gt[p])
         corr = np.corrcoef(A_learn_abs[p].ravel(), A_gt[p].ravel())[0,1]
-        axes[1,p].set_title(f"{PHASES[p]}  corr={corr:.2f}")
+        axes[1,p].set_title(f"{contextS[p]}  corr={corr:.2f}")
         axes[2,p].set_title(f"F1={f1:.2f}")
 
     plt.tight_layout()
