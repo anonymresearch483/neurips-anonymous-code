@@ -8,12 +8,12 @@ Synthetic datasets mirror the paper’s “Structured” and
 four behavioral regimes defined by distinct adjacency matrices.
 """
 
-import os, math, random
-from typing import List, Tuple, Dict
+import random
+from typing import List, Tuple
+
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader, Subset
-from scipy.signal import lfilter
 
 
 # ==============================================================
@@ -37,12 +37,12 @@ def set_seed(seed: int = 0):
 
 def make_gt_graphs_structured(cfg):
     """
-    Generate ground-truth adjacency matrices A^(φ)
+    Generate ground-truth adjacency matrices A^(k)
     exactly matching the original Code A pattern.
-    Each row connects to (i+1) and (i+ks[p]) mod N,
-    where ks = [2, 3, 4, 5] across the four phases.
+    Each row connects to (i+1) and (i+ks[k]) mod N,
+    where ks = [2, 3, 4, 5] across the four contexts.
     """
-    N, P = cfg.num_nodes, cfg.num_phases
+    N, P = cfg.num_nodes, cfg.num_contexts
     ks = [2, 3, 4, 5]                      # original offsets
     A_list, B_list = [], []
 
@@ -53,7 +53,7 @@ def make_gt_graphs_structured(cfg):
     for p in range(P):
         Aphi = base.copy()
         for i in range(N):
-            Aphi[i, (i + ks[p]) % N] = 1.0
+            Aphi[i, (i + ks[k]) % N] = 1.0
         Aphi = Aphi / Aphi.sum(axis=1, keepdims=True)
         Bphi = (Aphi > 0).astype(np.float32)
         A_list.append(Aphi)
@@ -72,9 +72,9 @@ def simulate_structured_trials(cfg, A_list):
         X : [P·trials, N, seq_len]
         labels : [P·trials]
     """
-    N, P = cfg.num_nodes, cfg.num_phases
+    N, P = cfg.num_nodes, cfg.num_contexts
     T = cfg.seq_len
-    n_trials = cfg.trials_per_phase
+    n_trials = cfg.trials_per_context
     ρ, γ, σ = cfg.rho, cfg.gamma, cfg.sig_noise
 
     all_x, all_y = [], []
@@ -98,27 +98,42 @@ def simulate_structured_trials(cfg, A_list):
 # Stochastic non-Gaussian suite  (Section 3.1 – “stochastic suite”)
 # --------------------------------------------------------------
 
-def make_gt_graphs_stochastic(cfg) -> List[np.ndarray]:
+def make_gt_graphs_stochastic(cfg) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """
-    Generate four directed adjacency matrices for the
-    stochastic non-Gaussian suite (A^(ϕ)), each sparse and random.
+    Generate four directed adjacency matrices for the stochastic
+    non-Gaussian synthetic suite.
+
+    Returns:
+        A_list : list of weighted ground-truth adjacency matrices
+        B_list : list of binary support masks for F1@k_row evaluation
     """
-    N, P = cfg.num_nodes, cfg.num_phases
-    A_list = []
+    N, P = cfg.num_nodes, cfg.num_contexts
+    A_list, B_list = [], []
+
     for p in range(P):
         A = np.zeros((N, N), dtype=np.float32)
-        for i in range(N):
-            out_idx = np.random.choice(
-                [j for j in range(N) if j != i], size=2, replace=False
-            )
-            A[i, out_idx] = np.random.uniform(0.4, 0.8, size=2)
-        np.fill_diagonal(A, 0.0)
-        # rescale spectral radius
-        eigs = np.linalg.eigvals(A)
-        A = A / (max(abs(eigs)) / cfg.spectral_radius)
-        A_list.append(A.astype(np.float32))
-    return A_list
 
+        for i in range(N):
+            src_idx = np.random.choice(
+                [j for j in range(N) if j != i],
+                size=2,
+                replace=False
+            )
+            A[i, src_idx] = np.random.uniform(0.4, 0.8, size=2)
+
+        np.fill_diagonal(A, 0.0)
+
+        eigs = np.linalg.eigvals(A)
+        max_eig = np.max(np.abs(eigs))
+        if max_eig > 0:
+            A = A / (max_eig / cfg.spectral_radius)
+
+        B = (np.abs(A) > 0).astype(np.float32)
+
+        A_list.append(A.astype(np.float32))
+        B_list.append(B)
+
+    return A_list, B_list
 
 def simulate_stochastic_trials(cfg, A_list):
     """
@@ -128,12 +143,12 @@ def simulate_stochastic_trials(cfg, A_list):
     and μ_t autoregressive Laplace noise (colored & heavy-tailed).
 
     Returns:
-        X : [P * trials_per_phase, N, seq_len]
-        labels : [P * trials_per_phase]
+        X : [P * trials_per_context, N, seq_len]
+        labels : [P * trials_per_context]
     """
-    N, P = cfg.num_nodes, cfg.num_phases
+    N, P = cfg.num_nodes, cfg.num_contexts
     T = cfg.seq_len
-    n_trials = cfg.trials_per_phase
+    n_trials = cfg.trials_per_context
     all_x, all_y = [], []
 
     leak, gain = 0.2, 0.3
@@ -164,16 +179,16 @@ def load_real_data_placeholder(mat_path: str):
     Placeholder for real deep-brain dataset loader.
 
     The private dataset used in the paper is stored as a MATLAB `.mat` file
-    with shape (phase, trial, channel, time). To keep the repository
+    with shape (context, trial, channel, time). To keep the repository
     anonymous, this function includes only the expected structure:
 
         Example:
-            data = np.loadmat(mat_path)["neuralDataAllPhases_reordered"]
-            # shape: (4 phases, num_trials, 80 channels, 400 timepoints)
+            data = np.loadmat(data_path)
+            # shape: (4 contexts, num_trials, 80 channels, 400 timepoints)
 
     Expected outputs:
         data_z : np.ndarray [T_tot, 80, 400]   (z-scored per channel)
-        labels : np.ndarray [T_tot]            (phase index per trial)
+        labels : np.ndarray [T_tot]            (context index per trial)
     """
     raise NotImplementedError(
         "Real neural data are private. "
@@ -193,7 +208,7 @@ class SlidingForecastDataset(Dataset):
 
     X_in  : [N, C, T_in]
     Y_out : [N, C, T_out]
-    phase : scalar  (0–3)
+    context : scalar  (0–3)
     """
     def __init__(self, data, labels, N: int, C: int,
                  T_in: int, T_out: int, stride: int = 20):
@@ -226,7 +241,7 @@ class SlidingForecastDataset(Dataset):
         trial_idx = idx // self.num_pairs_per_trial
         w_idx = idx % self.num_pairs_per_trial
         s = self.starts[w_idx]
-        phase = int(self.labels[trial_idx])
+        context = int(self.labels[trial_idx])
     
         trial = self.data[trial_idx]
         # --- FIX: handle [N, T] or [N, C, T] automatically ---
@@ -239,7 +254,7 @@ class SlidingForecastDataset(Dataset):
         return (
             torch.from_numpy(x).float(),
             torch.from_numpy(y).float(),
-            torch.tensor(phase, dtype=torch.long),
+            torch.tensor(context, dtype=torch.long),
         )
 
 
@@ -249,23 +264,29 @@ class SlidingForecastDataset(Dataset):
 # ==============================================================
 
 def split_by_trials(labels: np.ndarray, seed=0, train_frac=0.7, val_frac=0.15):
-    """Split indices by phase, preserving balance."""
+    """
+    Split trial indices by behavioral context while preserving balance.
+
+    This version does not assume that trials are ordered by context.
+    """
     set_seed(seed)
-    num_phases = len(np.unique(labels))
-    trials_per_phase = len(labels) // num_phases
+
     train, val, test = [], [], []
-    for p in range(num_phases):
-        start = p * trials_per_phase
-        end = start + trials_per_phase
-        ids = list(range(start, end))
+    contexts = sorted(np.unique(labels).tolist())
+
+    for context_idx in contexts:
+        ids = np.where(labels == context_idx)[0].tolist()
         random.shuffle(ids)
-        n_train = int(train_frac * trials_per_phase)
-        n_val = int(val_frac * trials_per_phase)
+
+        n = len(ids)
+        n_train = int(train_frac * n)
+        n_val = int(val_frac * n)
+
         train += ids[:n_train]
         val += ids[n_train:n_train + n_val]
         test += ids[n_train + n_val:]
-    return sorted(train), sorted(val), sorted(test)
 
+    return sorted(train), sorted(val), sorted(test)
 
 def make_loaders_from_trials(ds: Dataset, train_ids, val_ids, test_ids, batch_size=64, device="cpu"):
     """Create PyTorch DataLoaders from trial index lists."""
@@ -313,27 +334,51 @@ def apply_channel_norm(data: np.ndarray, mean: np.ndarray, std: np.ndarray) -> n
     return ((data - mean) / std).astype(np.float32)
 
 
-def phase_corr_init_from_ds(ds, train_trials: List[int]) -> List[np.ndarray]:
+def context_corr_init_from_ds(ds, train_trials: List[int]) -> List[np.ndarray]:
     """
-    Compute per-phase Pearson correlation across regions.
-    Used to initialize PhaseGraphs (untrained adjacency priors).
+    Compute per-context Pearson correlation across regions using training
+    trials only.
+
+    For each behavioral context, region-level signals are obtained by
+    averaging channels within each region. The resulting correlation matrices
+    initialize the raw adjacency parameters before training.
+
+    Supports both:
+        data[t] shape [N, T]
+        data[t] shape [N, C, T]
     """
     C_list = []
-    for p in range(4):
+
+    for k in range(4):
         xs = []
+
         for t in train_trials:
-            if int(ds.labels[t]) != p:
+            if int(ds.labels[t]) != k:
                 continue
+
+            trial = ds.data[t]
+
+            if trial.ndim == 2:
+                trial = trial[:, None, :]
+
             for s in ds.starts:
-                xs.append(ds.data[t][:, :, s:s + ds.T_in].mean(1))  # region-mean signal
-        if not xs:
+                segment = trial[:, :, s:s + ds.T_in]
+                region_mean = segment.mean(axis=1)
+                xs.append(region_mean)
+
+        if len(xs) == 0:
             C_list.append(np.zeros((ds.N, ds.N), dtype=np.float32))
             continue
-        Xp = np.stack(xs, axis=0)                      # [W, N, T_in]
-        Xflat = Xp.transpose(1, 0, 2).reshape(ds.N, -1)
+
+        Xk = np.stack(xs, axis=0)
+        Xflat = Xk.transpose(1, 0, 2).reshape(ds.N, -1)
+
         C = np.corrcoef(Xflat)
+        C = np.nan_to_num(C).astype(np.float32)
         np.fill_diagonal(C, 0.0)
-        C_list.append(np.nan_to_num(C).astype(np.float32))
+
+        C_list.append(C)
+
     return C_list
 
 
@@ -343,7 +388,7 @@ def phase_corr_init_from_ds(ds, train_trials: List[int]) -> List[np.ndarray]:
 
 def evaluate_graph_recovery(A_learned, A_gt, B_gt=None):
     """
-    Evaluate adjacency recovery per phase using:
+    Evaluate adjacency recovery per context using:
         (1) Pearson corr(|A_hat|, |A_gt|)
         (2) F1@k_row where k = row degree in B_gt (if provided)
 
