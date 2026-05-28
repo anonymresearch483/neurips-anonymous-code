@@ -26,7 +26,7 @@ from data_utils import (
     evaluate_graph_recovery,
 )
 from utils import ensure_dirs, set_seed
-from train_eval import train_full, overlay_examples, save_phase_adjacency_plots
+from train_eval import train_full, overlay_examples, save_context_adjacency_plots
 
 
 def main():
@@ -58,7 +58,7 @@ def main():
     # 3) Split
     # ----------------------------------------------------------
     train_ids, val_ids, test_ids = split_by_trials(labels, seed=cfg.master_seed)
-    print(f"Trials per phase: {cfg.trials_per_phase} | Train {len(train_ids)}, Val {len(val_ids)}, Test {len(test_ids)}")
+    print(f"Trials per context: {cfg.trials_per_context} | Train {len(train_ids)}, Val {len(val_ids)}, Test {len(test_ids)}")
 
     # ----------------------------------------------------------
     # 4) Datasets
@@ -77,7 +77,7 @@ def main():
     # ----------------------------------------------------------
     model = BACE(N=cfg.num_nodes, C=1, cfg=cfg).to(cfg.device)
     with torch.no_grad():
-        for p in range(cfg.num_phases):
+        for p in range(cfg.num_contexts):
             model.graphs.S[p].uniform_(-0.1, 0.1)
 
     # ----------------------------------------------------------
@@ -93,20 +93,20 @@ def main():
 
     metrics = evaluate_graph_recovery(A_learned, A_gt, B_gt=B_gt)
     print("Recovery metrics:")
-    for p in range(cfg.num_phases):
-        print(f"  Phase {p+1}  Corr={metrics['corr'][p]:.3f}  F1@k_row={metrics['f1'][p]:.3f}")
+    for p in range(cfg.num_contexts):
+        print(f"  context {p+1}  Corr={metrics['corr'][p]:.3f}  F1@k_row={metrics['f1'][p]:.3f}")
     print(f"  Mean Corr={np.mean(metrics['corr']):.3f}  Mean F1={np.mean(metrics['f1']):.3f}")
 
     np.save(os.path.join(cfg.out_dir, "metrics", "recovery_metrics.npy"), metrics)
     with open(os.path.join(cfg.out_dir, "metrics", "pattern_recovery.txt"), "w") as f:
-        for p in range(cfg.num_phases):
-            f.write(f"Phase {p+1}: Corr={metrics['corr'][p]:.3f}, F1@k_row={metrics['f1'][p]:.3f}\n")
+        for p in range(cfg.num_contexts):
+            f.write(f"context {p+1}: Corr={metrics['corr'][p]:.3f}, F1@k_row={metrics['f1'][p]:.3f}\n")
 
     # ----------------------------------------------------------
     # 8) Visualizations
     # ----------------------------------------------------------
     overlay_examples(model, ds, test_loader, cfg, region_idx=0)
-    save_phase_adjacency_plots(model, cfg)
+    save_context_adjacency_plots(model, cfg)
 
     print("Done. Results saved under:", cfg.out_dir)
 
