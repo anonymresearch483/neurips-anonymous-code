@@ -151,7 +151,8 @@ def simulate_stochastic_trials(cfg, A_list):
     n_trials = cfg.trials_per_context
     all_x, all_y = [], []
 
-    leak, gain = 0.2, 0.3
+    leak = cfg.leak_sim
+    gain = cfg.gamma_sim
     for p in range(P):
         A = A_list[p]
         for _ in range(n_trials):
@@ -160,7 +161,7 @@ def simulate_stochastic_trials(cfg, A_list):
             for t in range(1, T):
                 # autoregressive colored noise
                 eps = np.random.laplace(scale=cfg.laplace_scale, size=N).astype(np.float32)
-                noise_prev = 0.5 * noise_prev + eps
+                noise_prev = cfg.noise_ar * noise_prev + eps
                 x[:, t] = x[:, t - 1] + (-leak * x[:, t - 1] + gain * (A @ x[:, t - 1])) + noise_prev
             all_x.append(x)
             all_y.append(p)
