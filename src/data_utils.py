@@ -39,7 +39,7 @@ def make_gt_graphs_structured(cfg):
     """
     Generate ground-truth adjacency matrices A^(k)
     exactly matching the original Code A pattern.
-    Each row connects to (i+1) and (i+ks[k]) mod N,
+    Each row connects to (i+1) and (i+ks[p]) mod N,
     where ks = [2, 3, 4, 5] across the four contexts.
     """
     N, P = cfg.num_nodes, cfg.num_contexts
@@ -53,7 +53,7 @@ def make_gt_graphs_structured(cfg):
     for p in range(P):
         Aphi = base.copy()
         for i in range(N):
-            Aphi[i, (i + ks[k]) % N] = 1.0
+            Aphi[i, (i + ks[p]) % N] = 1.0
         Aphi = Aphi / Aphi.sum(axis=1, keepdims=True)
         Bphi = (Aphi > 0).astype(np.float32)
         A_list.append(Aphi)
