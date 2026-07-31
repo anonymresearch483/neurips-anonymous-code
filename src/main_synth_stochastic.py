@@ -41,7 +41,7 @@ def main():
     # ----------------------------------------------------------
     # 1) Ground-truth graphs
     # ----------------------------------------------------------
-    print("Generating stochastic suite graphs (𝓓₁–𝓓₄)...")
+    print("Generating stochastic suite graphs (D1-D4)...")
     A_gt, B_gt = make_gt_graphs_stochastic(cfg)
     np.save(os.path.join(cfg.out_dir, "graphs", "A_gt.npy"), A_gt)
     np.save(os.path.join(cfg.out_dir, "graphs", "B_gt.npy"), B_gt)
