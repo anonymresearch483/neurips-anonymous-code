@@ -95,7 +95,6 @@ def main():
     # with torch.no_grad():
     #     for p in range(cfg.num_contexts):
     #         model.graphs.S[p].uniform_(-0.1, 0.1)
-    from src.data_utils import context_corr_init_from_ds
     C_list = context_corr_init_from_ds(ds, train_ids)
     model.graphs.init_from_correlation(C_list)
 
