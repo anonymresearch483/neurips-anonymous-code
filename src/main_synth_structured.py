@@ -50,7 +50,7 @@ def main():
     # ----------------------------------------------------------
     # 1) Generate ground-truth graphs (A_gt)
     # ----------------------------------------------------------
-    print("Generating structured suite graphs (𝓓₁–𝓓₄)...")
+    print("Generating structured suite graphs (D1-D4)...")
     A_gt, B_gt = make_gt_graphs_structured(cfg)
     np.save(os.path.join(cfg.out_dir, "graphs", "A_gt.npy"), A_gt)
     np.save(os.path.join(cfg.out_dir, "graphs", "B_gt.npy"), B_gt)
@@ -199,7 +199,11 @@ def main():
 
     # F1 and corr labels
     def f1_topk(A_pred, B_true):
-        N = A_pred.shape[0]; np.fill_diagonal(A_pred,-np.inf)
+        A_pred = A_pred.copy()
+        B_true = B_true.astype(bool, copy=False)
+        
+        N = A_pred.shape[0]; 
+        np.fill_diagonal(A_pred,-np.inf)
         k = B_true.sum(1).astype(int)
         pred = np.zeros_like(B_true,bool)
         for i in range(N):
